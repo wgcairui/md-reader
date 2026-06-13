@@ -52,6 +52,9 @@
       },
       "eas": {
         "projectId": "8c5ca787-6225-4831-baa9-290562e458dd"
+      },
+      "update": {
+        "repo": "wgcairui/mdreader"
       }
     },
     "owner": "cairui"

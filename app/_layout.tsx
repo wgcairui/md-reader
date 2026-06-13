@@ -9,6 +9,7 @@ import { SplashScreen } from 'expo-router';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { showUpdateIfAvailable } from '../src/lib/autoUpdate';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -22,7 +23,12 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (loaded || error) void SplashScreen.hideAsync().catch(() => {});
+    if (loaded || error) {
+      void SplashScreen.hideAsync().catch(() => {});
+      // 字体加载完成后才检查更新 — 不阻塞首屏
+      // 失败时静默（auto-update 是 best-effort，不影响正常使用）
+      void showUpdateIfAvailable();
+    }
   }, [loaded, error]);
 
   if (!loaded && !error) return null;

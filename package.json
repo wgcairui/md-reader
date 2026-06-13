@@ -8,6 +8,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "android:release": "cd android && ./gradlew assembleRelease",
     "postinstall": "patch-package"
   },
   "dependencies": {
