@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "MDReader",
+    "slug": "mdreader",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "mdreader",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mdreader.app"
+    },
+    "android": {
+      "package": "com.mdreader.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0d1117"
+      },
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      [
+        "expo-file-system",
+        {
+          "uploadPaths": [
+            "**/*"
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "8c5ca787-6225-4831-baa9-290562e458dd"
+      }
+    },
+    "owner": "cairui"
+  }
+}
