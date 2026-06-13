@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
@@ -15,9 +16,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRepoStore } from '../../src/store/repoStore';
 import { useThemeTokens } from '../../src/theme/useTheme';
 import { radii, space } from '../../src/theme/tokens';
-import { buildFileTree, listMarkdownFiles, readRepoRoot, readText } from '../../src/lib/fileTree';
+import { buildFileTree, listAllFiles, listMarkdownFiles, readRepoRoot, readText } from '../../src/lib/fileTree';
 import { FileTree } from '../../src/components/FileTree';
 import { MarkdownView } from '../../src/components/Markdown';
+import { CodeBlock } from '../../src/components/CodeBlock';
 import { TableOfContents, type TocItem } from '../../src/components/TableOfContents';
 import type { FileNode, MarkdownMeta } from '../../src/types';
 
@@ -71,6 +73,7 @@ export default function RepoScreen() {
 
   const [tree, setTree] = useState<FileNode | null>(null);
   const [allMd, setAllMd] = useState<string[]>([]);
+  const [allFiles, setAllFiles] = useState<string[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
   const [content, setContent] = useState('');
   const [meta, setMeta] = useState<MarkdownMeta>({
@@ -83,18 +86,37 @@ export default function RepoScreen() {
   const [err, setErr] = useState<string>('');
 
   // 初始化：解析根、构建文件树
+  // 关键：deps 必须用 `repo?.id`（字符串）而不是 `repo`（对象）。
+  // 原因：touch() 会更新 lastOpenedAt 触发 zustand 状态变化，
+  // 下次 render 时 `useRepoStore((s) => s.get(id))` 返回的 repo 对象引用变了，
+  // 如果用 `repo` 当 deps 会无限循环（effect 跑 → touch → setState → re-render → 新 repo 引用 → 又跑）。
+  // 用 id 字符串就稳了。repo 对象本身用 ref 拿最新值。
+  const repoRef = useRef(repo);
+  repoRef.current = repo;
+  const touchRef = useRef(touch);
+  touchRef.current = touch;
+
   useEffect(() => {
-    if (!repo) return;
+    const id = repoRef.current?.id;
+    if (!id) return;
     void (async () => {
       setLoading(true);
       setErr('');
       try {
-        touch(repo.id);
-        const root = await readRepoRoot(repo);
-        const t = await buildFileTree(root, repo.source.kind === 'local' ? repo.source.displayName : repo.source.name);
+        const currentRepo = repoRef.current!;
+        touchRef.current(id);
+        const root = await readRepoRoot(currentRepo);
+        const t = await buildFileTree(
+          root,
+          currentRepo.source.kind === 'local'
+            ? currentRepo.source.displayName
+            : currentRepo.source.name,
+        );
         const mds = await listMarkdownFiles(root);
+        const all = await listAllFiles(root);
         setTree(t);
         setAllMd(mds);
+        setAllFiles(all);
         // 默认打开 README
         const readme = pickReadme(mds);
         setCurrent(readme);
@@ -104,14 +126,18 @@ export default function RepoScreen() {
         setLoading(false);
       }
     })();
-  }, [repo, touch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repo?.id]);
 
   // 加载当前文件内容
+  // 同样用 repo.id 字符串当 deps（不能直接用 repo 对象，touch() 会让它换引用）。
   useEffect(() => {
-    if (!repo || !current) return;
+    const id = repoRef.current?.id;
+    if (!id || !current) return;
     void (async () => {
       try {
-        const root = await readRepoRoot(repo);
+        const currentRepo = repoRef.current!;
+        const root = await readRepoRoot(currentRepo);
         const text = await readText(`${root}/${current}`);
         setContent(text);
         // 切文件：清位置缓存 + 滚到顶 + 重置 activeId
@@ -123,7 +149,21 @@ export default function RepoScreen() {
         setErr(String((e as Error).message ?? e));
       }
     })();
-  }, [repo, current]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repo?.id, current]);
+
+  // 接收 MarkdownView 报上来的 headings/sibling。
+  // 关键：用 content key 守护，只在 headings 真变时才 setState。
+  // MarkdownView 端的 setMeta({ ...m, currentPath, siblingMarkdowns }) 每次都新对象引用，
+  // 不守护的话会 setMeta → re-render → MarkdownView 重 mount → setMeta 死循环。
+  const lastMetaKeyRef = useRef<string>('');
+  const onMarkdownMeta = (m: MarkdownMeta) => {
+    const headingsKey = m.headings.map((h) => `${h.depth}:${h.id}`).join('|');
+    const fullKey = `${current}|${headingsKey}`;
+    if (lastMetaKeyRef.current === fullKey) return;
+    lastMetaKeyRef.current = fullKey;
+    setMeta({ ...m, currentPath: current ?? '', siblingMarkdowns: allFiles });
+  };
 
   const onSelect = (path: string) => {
     setCurrent(path);
@@ -139,6 +179,46 @@ export default function RepoScreen() {
     scrollRef.current.scrollTo({ y: Math.max(0, target - SCROLL_TOP_OFFSET), animated: true });
     // 移动端关掉竖屏抽屉，体验更聚焦
     if (!isVeryWide) setTocOpen(false);
+  };
+
+  /**
+   * Markdown 里的链接点击 — 分流三路：
+   *  1. 内部 anchor (`#xxx`) → 用 onJump 走 TOC 滚动逻辑
+   *  2. 相对路径 (`./other.md` 或 `other.md`) → 切到对应文件
+   *  3. 外部 URL (http/https/mailto) → 系统浏览器
+   * 注意：相对路径必须基于当前 current 文件的目录解析
+   */
+  const onMarkdownLinkPress = (href: string) => {
+    // 1. 内部 anchor
+    if (href.startsWith('#')) {
+      const id = href.slice(1);
+      onJump(id);
+      return;
+    }
+    // 2. 相对路径
+    if (!/^[a-z]+:\/\//i.test(href) && !href.startsWith('mailto:')) {
+      // 基于 current 所在目录解析 `./xxx` 或 `xxx`
+      const baseDir = current?.includes('/') ? current.slice(0, current.lastIndexOf('/')) : '';
+      const stripped = href.replace(/^\.\//, '');
+      const resolved = baseDir ? `${baseDir}/${stripped}` : stripped;
+      // 简单归一化（处理 ../）
+      const parts: string[] = [];
+      for (const seg of resolved.split('/')) {
+        if (seg === '..') parts.pop();
+        else if (seg !== '.' && seg !== '') parts.push(seg);
+      }
+      const finalPath = parts.join('/');
+      // 检查该文件是否在 allFiles 里，是的话切过去
+      if (allFiles.includes(finalPath)) {
+        onSelect(finalPath);
+        return;
+      }
+      // 不在文件列表里（可能 allFiles 还没加载完），仍尝试 setCurrent
+      onSelect(finalPath);
+      return;
+    }
+    // 3. 外部 URL
+    Linking.openURL(href).catch(() => {});
   };
 
   /**
@@ -241,13 +321,18 @@ export default function RepoScreen() {
               <Text style={{ color: colors.fg.subtle, fontSize: 11, marginBottom: space[2] }}>
                 {current}
               </Text>
-              <MarkdownView
-                source={content}
-                onHeadingLayout={onHeadingLayout}
-                onMeta={(m) => setMeta({ ...m, currentPath: current, siblingMarkdowns: allMd })}
-              />
+              {isMarkdown(current) ? (
+                <MarkdownView
+                  source={content}
+                  onHeadingLayout={onHeadingLayout}
+                  onMeta={onMarkdownMeta}
+                  onLinkPress={onMarkdownLinkPress}
+                />
+              ) : (
+                <CodeBlock code={content} lang={langFor(current)} />
+              )}
               <Pager
-                allMd={allMd}
+                allMd={allFiles}
                 current={current}
                 onChange={onSelect}
                 colors={colors}
@@ -288,6 +373,35 @@ function pickReadme(mds: string[]): string | null {
     if (hit) return hit;
   }
   return mds[0];
+}
+
+/** 是否走 Markdown 渲染。.md / .markdown / .mdx 走 MarkdownView，其他走 CodeBlock */
+function isMarkdown(path: string): boolean {
+  return /\.(md|markdown|mdx)$/i.test(path);
+}
+
+/** 文件扩展名 → CodeBlock 的 lang。命中 highlight 支持的语言集才返回，否则传 '' 让高亮走 fallback */
+function langFor(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    ts: 'ts',
+    tsx: 'ts',
+    js: 'js',
+    jsx: 'js',
+    mjs: 'js',
+    cjs: 'js',
+    py: 'py',
+    json: 'json',
+    yaml: 'yaml',
+    yml: 'yaml',
+    sh: 'sh',
+    bash: 'bash',
+    zsh: 'sh',
+    go: 'go',
+    rs: 'rust',
+    sql: 'sql',
+  };
+  return map[ext] ?? '';
 }
 
 function Header({
@@ -413,6 +527,7 @@ function Pager({
   onChange: (p: string) => void;
   colors: ReturnType<typeof useThemeTokens>['colors'];
 }) {
+  // 跨所有文件（不只是 markdown）：按 allMd 顺序 prev/next
   const idx = allMd.indexOf(current);
   const prev = idx > 0 ? allMd[idx - 1] : null;
   const next = idx >= 0 && idx < allMd.length - 1 ? allMd[idx + 1] : null;

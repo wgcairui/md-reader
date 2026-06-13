@@ -1,3 +1,7 @@
+// 必须在最顶部 — 给 nanoid / expo-router 提供 crypto.getRandomValues polyfill
+// 否则 RN 0.76 bridgeless Hermes 模式下会报 'Property crypto doesn't exist'
+import 'react-native-get-random-values';
+
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';

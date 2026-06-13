@@ -32,11 +32,23 @@ export async function readRepoRoot(repo: Repo): Promise<string> {
 /** 列出目录下的所有 .md / .markdown / .mdx 文件（递归） */
 export async function listMarkdownFiles(root: string): Promise<string[]> {
   const out: string[] = [];
-  await walk(root, root, out);
+  await walk(root, root, out, /\.md$|\.markdown$|\.mdx$/i);
   return out.sort();
 }
 
-async function walk(root: string, dir: string, out: string[]): Promise<void> {
+/** 列出目录下所有可读文件（递归，按文件树顺序）。用于 pager prev/next 跨所有文件。 */
+export async function listAllFiles(root: string): Promise<string[]> {
+  const out: string[] = [];
+  await walk(root, root, out, null);
+  return out.sort();
+}
+
+async function walk(
+  root: string,
+  dir: string,
+  out: string[],
+  filter: RegExp | null,
+): Promise<void> {
   const entries = await FileSystem.readDirectoryAsync(dir);
   // 先目录后文件，目录按字母序
   entries.sort((a, b) => a.localeCompare(b));
@@ -47,8 +59,8 @@ async function walk(root: string, dir: string, out: string[]): Promise<void> {
     const info = await FileSystem.getInfoAsync(full, { size: false });
     if (!info.exists) continue;
     if (info.isDirectory) {
-      await walk(root, full, out);
-    } else if (/\.(md|markdown|mdx)$/i.test(name)) {
+      await walk(root, full, out, filter);
+    } else if (filter === null || filter.test(name)) {
       out.push(full.slice(root.length + 1));
     }
   }

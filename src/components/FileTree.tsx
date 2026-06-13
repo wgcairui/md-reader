@@ -114,7 +114,7 @@ function TreeRow({
     <Pressable
       onPress={() => {
         if (node.isDir) onToggle(node.path);
-        else if (isMd) onSelect(node.path);
+        else onSelect(node.path);
       }}
       style={({ pressed }) => [
         styles.row,

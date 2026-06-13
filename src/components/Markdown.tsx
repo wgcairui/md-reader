@@ -1,6 +1,15 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import Markdown, { type ASTNode } from 'react-native-markdown-display';
-import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Image,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useThemeTokens } from '../theme/useTheme';
 import { space } from '../theme/tokens';
 import { CodeBlock } from './CodeBlock';
@@ -11,6 +20,14 @@ type Props = {
   /** 滚动事件回调：把每个 heading 的 y 坐标交出去 */
   onHeadingLayout?: (id: string, y: number) => void;
   onMeta?: (meta: MarkdownMeta) => void;
+  /**
+   * 链接点击 — 父组件决定如何处理：
+   *  - 内部 anchor (#xxx)：onAnchorJump(id)
+   *  - 相对路径 ./other.md：onSelect(absPath)
+   *  - 外部 http(s)://：Linking.openURL
+   * 我们在父组件做了分流，这里只透传。
+   */
+  onLinkPress?: (href: string) => void;
 };
 
 /**
@@ -23,17 +40,28 @@ type Props = {
  *   - 同时解析 headings 返给 TOC
  *   - 每个 heading Text 节点挂 onLayout，把 y 坐标透出
  */
-export function MarkdownView({ source, onHeadingLayout, onMeta }: Props) {
+export function MarkdownView({ source, onHeadingLayout, onMeta, onLinkPress }: Props) {
   const { colors, isDark } = useThemeTokens();
   const { width, height } = useWindowDimensions();
   const isLandscape = width >= height;
   const meta = useMemo(() => extractMeta(source), [source]);
 
-  // 触发外层接收
-  useMemo(() => {
+  // 触发外层接收。
+  // 必须用 useEffect 而不是 useMemo — useMemo 会在每次 render 同步执行
+  // （包括 StrictMode double-invoke + parent 触发的 re-render），
+  // 而 meta 对象每次都新引用，会让 setMeta 死循环 → 父组件 re-render → 又触发。
+  // 用 useEffect 只在 deps 内容真正变化时执行一次。
+  // 父组件那边也得用稳定 key 做 content diff（heading id 列表），否则会循环。
+  const headingsKey = useMemo(
+    () => meta.headings.map((h) => `${h.depth}:${h.id}`).join('|'),
+    [meta],
+  );
+  const lastKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (lastKeyRef.current === headingsKey) return;
+    lastKeyRef.current = headingsKey;
     onMeta?.(meta);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta]);
+  }, [headingsKey, meta, onMeta]);
 
   const styles = useMemo(
     () =>
@@ -161,6 +189,54 @@ export function MarkdownView({ source, onHeadingLayout, onMeta }: Props) {
           heading4: makeHeadingRule(4, styles.heading4, onHeadingLayout),
           heading5: makeHeadingRule(5, undefined, onHeadingLayout),
           heading6: makeHeadingRule(6, undefined, onHeadingLayout),
+          // 自定义 link：透传 href 给父组件处理（外部/内部/相对路径）
+          link: (node, children) => {
+            const href = (node as unknown as { attributes: { href: string } }).attributes.href;
+            return (
+              <Text
+                style={styles.link}
+                onPress={() => {
+                  if (onLinkPress) onLinkPress(href);
+                  else Linking.openURL(href).catch(() => {});
+                }}
+              >
+                {children}
+              </Text>
+            );
+          },
+          // 自定义 image：放行所有 src（含 file:// / 相对路径 / data:），
+          // 用 RN Image 渲染。远程 URL + 本地文件都能用。
+          image: (node) => {
+            const { src, alt } = (node as unknown as { attributes: { src: string; alt?: string } })
+              .attributes;
+            // 拿不到宽高时给个占位高度，避免布局塌
+            const fallbackW = 320;
+            const fallbackH = 200;
+            return (
+              <View style={{ marginVertical: space[3] }}>
+                <Image
+                  source={
+                    src.startsWith('file://') || src.startsWith('content://') || src.startsWith('data:')
+                      ? { uri: src }
+                      : src.startsWith('http://') || src.startsWith('https://')
+                        ? { uri: src }
+                        : // 相对路径原样塞，RN Image 不一定能渲染但不会让整个 markdown 崩
+                          { uri: src }
+                  }
+                  style={{ width: '100%', minHeight: fallbackH, backgroundColor: 'transparent' }}
+                  resizeMode="contain"
+                  accessibilityLabel={alt}
+                />
+                {alt ? (
+                  <Text style={{ color: colors.fg.muted, fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+                    {alt}
+                  </Text>
+                ) : null}
+              </View>
+            );
+            // fallbackW 占位避免 lint
+            void fallbackW;
+          },
         }}
       >
         {source}

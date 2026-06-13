@@ -1,6 +1,12 @@
 import * as FileSystem from 'expo-file-system';
-import { nanoid } from 'nanoid';
 import type { DocumentPickerAsset } from 'expo-document-picker';
+
+// nanoid 依赖 `crypto.getRandomValues()`，但 RN 0.76 + bridgeless 模式下
+// Hermes 不暴露 `crypto` 全局，导致 'Property crypto doesn't exist'。
+// 缓存目录 id 不需要密码学强度，用 Math.random 自造 8 位 id 就够。
+function makeId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
 
 export type ImportProgress = (stage: 'copy', p: number, msg: string) => void;
 
@@ -28,7 +34,7 @@ export async function importLocalFiles(
 }> {
   if (assets.length === 0) throw new Error('No files selected');
 
-  const id = nanoid(8);
+  const id = makeId();
   const root = `${FileSystem.cacheDirectory}local-imports/${id}`;
   await FileSystem.makeDirectoryAsync(root, { intermediates: true });
 
@@ -46,18 +52,19 @@ export async function importLocalFiles(
     await FileSystem.makeDirectoryAsync(dest.replace(/\/[^/]+$/, ''), { intermediates: true });
 
     // 读源文件内容，写到目标
-    // assets[i].uri 可能是 file:// 也可能是 content://；expo-file-system 都接受
-    const src = a.uri.replace(/^file:\/\//, '');
+    // expo-file-system 18.x: readAsStringAsync 必须传 file:// URI，不能剥协议
+    // picker (copyToCacheDirectory: true) 返回的就是 file:// 指向 cache 副本
     let content: string;
     try {
-      content = await FileSystem.readAsStringAsync(src, { encoding: 'utf8' });
-    } catch {
-      // 如果 a.file 是 web File（拷贝到 cache 后），再尝试一次
-      const fallback = (a as { file?: { uri?: string } }).file?.uri;
-      if (fallback) {
+      content = await FileSystem.readAsStringAsync(a.uri, { encoding: 'utf8' });
+    } catch (err) {
+      // 退路：expo-file-system v18+ 在某些 Android content provider URI 上可能失败，
+      // 试一下把 file:// 剥掉当纯路径用（旧版兼容）
+      const fallback = a.uri.replace(/^file:\/\//, '');
+      try {
         content = await FileSystem.readAsStringAsync(fallback, { encoding: 'utf8' });
-      } else {
-        throw new Error(`Cannot read ${a.name}`);
+      } catch {
+        throw new Error(`Cannot read ${a.name} (${a.uri}): ${(err as Error).message}`);
       }
     }
     await FileSystem.writeAsStringAsync(dest, content, { encoding: 'utf8' });
