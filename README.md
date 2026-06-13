@@ -4,6 +4,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](./)
 [![Expo SDK 52](https://img.shields.io/badge/Expo-SDK%2052-000020?logo=expo)](./)
+[![React Native 0.76](https://img.shields.io/badge/React%20Native-0.76-61dafb?logo=react&logoColor=white)](https://reactnative.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![GitHub stars](https://img.shields.io/github/stars/wgcairui/md-reader?style=social)](https://github.com/wgcairui/md-reader/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/wgcairui/md-reader?style=social)](https://github.com/wgcairui/md-reader/forks)
+[![GitHub issues](https://img.shields.io/github/issues/wgcairui/md-reader)](https://github.com/wgcairui/md-reader/issues)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/wgcairui/md-reader)](https://github.com/wgcairui/md-reader/releases/latest)
 
 一个 GitHub 风格的 Markdown 阅读器，主打 Android（也支持 iOS / Web），基于 **Expo + React Native** 开发。
 
