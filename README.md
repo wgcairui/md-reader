@@ -1,6 +1,6 @@
 # MDReader
 
-[![build-android](https://github.com/wgcairui/mdreader/actions/workflows/build.yml/badge.svg)](https://github.com/wgcairui/mdreader/actions/workflows/build.yml)
+[![build-android](https://github.com/wgcairui/md-reader/actions/workflows/build.yml/badge.svg)](https://github.com/wgcairui/md-reader/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](./)
 [![Expo SDK 52](https://img.shields.io/badge/Expo-SDK%2052-000020?logo=expo)](./)
@@ -10,9 +10,9 @@ A GitHub-flavored Markdown reader for Android (and iOS / web) built with **Expo 
 Designed for the scenario where you `git clone` (or paste a URL) a project onto your tablet
 and want to read the docs offline with a clean, GitHub-like UI.
 
-**[⬇ Download latest release](https://github.com/wgcairui/mdreader/releases/latest)** ·
+**[⬇ Download latest release](https://github.com/wgcairui/md-reader/releases/latest)** ·
 [Screenshots](#screenshots) ·
-[Changelog](https://github.com/wgcairui/mdreader/releases) ·
+[Changelog](https://github.com/wgcairui/md-reader/releases) ·
 [Contributing](#contributing)
 
 ## Highlights
@@ -148,7 +148,7 @@ git tag v0.2.0
 git push origin main --follow-tags
 
 # 3. Wait ~4 min for the CI workflow, then:
-gh release view v0.2.0 --repo wgcairui/mdreader
+gh release view v0.2.0 --repo wgcairui/md-reader
 ```
 
 **Required CI secrets** (Settings → Secrets → Actions on the GitHub repo):
@@ -177,7 +177,7 @@ modal offers to download the new APK. See `src/lib/autoUpdate.ts`.
   the same egress IP, add a token in a serverless proxy.
 
 The auto-update target repo is configured via `app.json` → `extra.update.repo` (default
-`wgcairui/mdreader`). Change it if you fork — that's the only place you need to edit
+`wgcairui/md-reader`). Change it if you fork — that's the only place you need to edit
 for the in-app updater to point at your repo.
 
 ## Project layout

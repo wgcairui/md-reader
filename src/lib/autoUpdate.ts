@@ -29,7 +29,7 @@ import Constants from 'expo-constants';
  *   "extra": { "update": { "repo": "owner/name" } }
  * Falls back to the upstream default if unset.
  */
-const GITHUB_REPO_FALLBACK = 'wgcairui/mdreader';
+const GITHUB_REPO_FALLBACK = 'wgcairui/md-reader';
 const GITHUB_REPO =
   (Constants.expoConfig?.extra as { update?: { repo?: string } } | undefined)?.update?.repo ??
   GITHUB_REPO_FALLBACK;
