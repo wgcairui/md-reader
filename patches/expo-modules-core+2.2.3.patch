@@ -1,0 +1,37 @@
+diff --git a/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle b/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+index 4ec4514..12e946a 100644
+--- a/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
++++ b/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+@@ -14,7 +14,7 @@ class KotlinExpoModulesCorePlugin implements Plugin<Project> {
+       project.ext.kotlinVersion = {
+         project.rootProject.ext.has("kotlinVersion")
+             ? project.rootProject.ext.get("kotlinVersion")
+-            : "1.9.24"
++            : "1.9.25"
+       }
+ 
+       project.ext.kspVersion = {
+diff --git a/node_modules/expo-modules-core/android/build.gradle b/node_modules/expo-modules-core/android/build.gradle
+index 05c45a6..7951221 100644
+--- a/node_modules/expo-modules-core/android/build.gradle
++++ b/node_modules/expo-modules-core/android/build.gradle
+@@ -116,10 +116,18 @@ android {
+     compose true
+   }
+ 
++  // Compose 1.5.15 warns about Kotlin 1.9.24; we ship 1.9.25 anyway and just
++  // silence the warning. Suppress flag is the official escape hatch from AGP.
++  if (KOTLIN_MAJOR_VERSION < 2) {
++    kotlinOptions {
++      freeCompilerArgs += ["-P", "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=1.9.24"]
++    }
++  }
++
+   if (KOTLIN_MAJOR_VERSION < 2) {
+     composeOptions {
+       def versionsMap = [
+-        "1.9.24": "1.5.14",
++        "1.9.24": "1.5.15",
+         "1.9.25": "1.5.15",
+       ]
+       kotlinCompilerExtensionVersion = versionsMap[kotlinVersion()]
