@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system';
-import { inflateSync } from 'fflate';
+import { gunzipSync } from 'fflate';
 import type { Repo } from '../types';
 
 export type ParsedGitHubUrl = { owner: string; name: string };
@@ -104,11 +104,11 @@ export async function fetchAndExtract(
   return { cacheSlug, rootDir: target };
 }
 
-/** fflate 同步 inflate gzip，包装成 Promise */
+/** fflate 同步 gunzip + tar 解析 */
 function inflateTarGz(gz: Uint8Array): Uint8Array {
-  // inflateSync 解的是 zlib stream；tarball 是 raw gzip，需要先剥 gzip 头
-  // fflate 提供 inflateSync 默认吃 zlib（带 header），对 tar.gz 也兼容良好
-  return inflateSync(gz);
+  // codeload.github.com 给的是 raw gzip stream（gzip header，不是 zlib header），
+  // 必须用 gunzipSync；用 inflateSync 会抛 "invalid block type"。
+  return gunzipSync(gz);
 }
 
 type TarEntry = {
