@@ -43,7 +43,11 @@ jobs:
           distribution: temurin
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        # 用 android-actions/setup-android@v2 替代 v3 — v3 在 GitHub-hosted runner
+        # 上装 cmdline-tools;latest (16.0) 会在 license 接受阶段退出 1
+        # (sha256 hash 校验或新 license 没接受)；v2 默认装 cmdline-tools 8.0 稳定。
+        # 完整体验 v3 的好处不大 (cache), 改用 v2。
+        uses: android-actions/setup-android@v2
         with:
           # build-tools 36.1.0 + platform-tools + platforms;android-34
           # 与 android/gradle.properties 里的 android.kotlinVersion=1.9.25 + Java 17 对齐
@@ -51,7 +55,6 @@ jobs:
             platform-tools
             platforms;android-34
             build-tools;36.1.0
-          # cache-build-tools 在 runner 切换时减少下载时间
 
       - name: Make JDK 17 + Android SDK env available to Gradle
         run: |
